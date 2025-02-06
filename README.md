@@ -9,6 +9,7 @@ Crux Agent is a cross-platform AI voice agent designed to run on multiple device
 - AI processing via:
   - [Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI)
   - [OpenedAI-Whisper](https://github.com/matatonic/openedai-whisper)
+  - [Ollama](https://github.com/ollama/ollama)
 - Open function call system for community contributions
 
 ## Getting Started
@@ -47,6 +48,7 @@ A huge thanks to the following projects for making Crux Agent possible:
 - [LiveKit](https://github.com/livekit/livekit) for real-time communication
 - [Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI) for AI processing
 - [OpenedAI-Whisper](https://github.com/matatonic/openedai-whisper) for speech recognition
+- [Ollama](https://github.com/ollama/ollama) for additional AI capabilities
 
 ## Contributing
 This is an open project! If you’d like to contribute function calls or improve the agent, feel free to fork, submit PRs, or join the discussion.

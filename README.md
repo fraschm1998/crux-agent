@@ -25,7 +25,7 @@ To run Crux Agent locally, you'll need:
 
 1. Clone the repository:
    ```sh
-   git clone https://github.com/your-username/crux-agent.git
+   git clone https://github.com/fraschm1998/crux-agent.git
    cd crux-agent
    ```
 

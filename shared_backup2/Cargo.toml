@@ -1,0 +1,97 @@
+[package]
+name = "shared"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+rust-version.workspace = true
+
+# [lib]
+# crate-type = ["lib", "staticlib", "cdylib"]
+# name = "shared"
+#
+# [features]
+# typegen = ["crux_core/typegen"]
+
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]
+name = "shared"
+
+[[bin]]
+name = "uniffi-bindgen"
+required-features = ["uniffi-bindgen"]
+
+[features]
+default = []
+typegen = ["crux_core/typegen"]
+uniffi-bindgen = ["uniffi/cli"]
+android-binding = ["dep:jni"]
+ios-binding = ["dep:objc"]
+
+[dependencies]
+crux_core.workspace = true
+crux_http.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json = "^1"
+anyhow = "^1"
+lazy_static = "^1.5"
+uniffi = "^0.28"
+wasm-bindgen = "^0.2"
+chrono = "^0.4"
+regex = "^1.11"
+once_cell = "^1.20"
+serde_bytes = "^0.11"
+livekit = { git = "https://github.com/livekit/rust-sdks", package = "livekit", features = ["rustls-tls-webpki-roots"] }
+
+tokio = { version = "^1", features = ["full"] }
+futures = "0.3.31"
+
+# Cross Platform Audio
+cpal = "^0.15"
+
+# Logging
+log = "^0.4"
+env_logger = "^0.10"
+
+[dependencies.uuid]
+version = "1.11.0"
+features = [
+    "v4",                # Lets you generate random UUIDs
+    "fast-rng",          # Use a faster (but still sufficiently random) RNG
+    "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
+    "js",                # Wasm support
+    # "serde"
+]
+
+[target.'cfg(target_os = "android")'.dependencies]
+cpal = { version = "^0.15", default-features = false, features = ["oboe-shared-stdcxx"] }
+android_logger = "^0.14"
+ndk-context = "^0.1"
+jni = { version = "^0.21", optional = true }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+oslog = { version = "0.2", optional = true }
+objc = { version = "0.2.7", optional = true }
+
+[target.uniffi-bindgen.dependencies]
+uniffi = { version = "^0.28", features = ["cli"] }
+
+[build-dependencies]
+uniffi = { version = "^0.28", features = ["build"] }
+webrtc-sys-build = "0.3.6"
+
+# #### DO I NEED THIS?? ####
+#
+# [target.x86_64-apple-darwin]
+# rustflags = ["-C", "link-args=-ObjC"]
+#
+# [target.aarch64-apple-darwin]
+# rustflags = ["-C", "link-args=-ObjC"]
+#
+# [target.aarch64-apple-ios]
+# rustflags = ["-C", "link-args=-ObjC"]
+#
+# [target.aarch64-apple-ios-sim]
+# rustflags = ["-C", "link-args=-ObjC"]

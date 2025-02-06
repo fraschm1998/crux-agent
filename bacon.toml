@@ -1,0 +1,11 @@
+[jobs.runlog]
+command = ["cargo", "run"]
+env.RUST_LOG = "debug"
+# env = { "RUST_LOG" = "debug" }
+watch = ["src"]
+
+[jobs.shared]
+command = ["cargo", "build", "--package", "shared"]
+
+[jobs.types]
+command = ["cargo", "build", "--package", "shared_types"]

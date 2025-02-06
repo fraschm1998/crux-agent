@@ -1,0 +1,15 @@
+.DS_Store
+Cargo.lock
+target/
+api/.gitignore
+Android/.kotlin
+speech-analysis-dashboard/.next
+speech-analysis-dashboard/node_modules
+
+server/recordings
+
+# Environment Variables
+**/.env
+.env
+.env.*
+.aider*

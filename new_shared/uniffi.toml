@@ -1,0 +1,11 @@
+[bindings.kotlin]
+package_name = "me.fraschetti.agent.shared"
+cdylib_name = "shared"
+
+[bindings.swift]
+cdylib_name = "shared_ffi"
+omit_argument_labels = true
+
+# Add WebRTC configuration
+[android]
+webrtc_link_name = "shared"

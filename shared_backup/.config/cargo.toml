@@ -1,0 +1,8 @@
+[target.aarch64-linux-android]
+ar = "llvm-ar"
+linker = "aarch64-linux-android33-clang"
+rustflags = ["-C", "link-arg=-Wl,--no-rosegment"]
+
+[env]
+CC_aarch64-linux-android = "aarch64-linux-android33-clang"
+CXX_aarch64-linux-android = "aarch64-linux-android33-clang++"

@@ -1,0 +1,86 @@
+            Event::LiveKit(livekit_event) => match livekit_event {
+                LiveKitEvent::JoinRoom => {
+                    caps.compose.spawn(|ctx| async move {
+                        // Signal that we're attempting to connect
+                        // ctx.update_app(Event::LiveKit(LiveKitEvent::Connecting));
+
+                        log::info!("Starting connection process...");
+
+                        let connect_result = RUNTIME.spawn(async move {
+                            let url = "http://192.168.20.20:7880";
+                            let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDI3NDg1MjcsImlzcyI6ImRldmtleSIsIm5hbWUiOiJsb2NhbGsiLCJuYmYiOjE3Mzg0Mjg1MjcsInN1YiI6ImxvY2FsayIsInZpZGVvIjp7InJvb20iOiJ0ZXN0Iiwicm9vbUpvaW4iOnRydWV9fQ.2i_6v5LD2cjyC25fomVCCrlR_PFKFw8b6zbyqXVr-MU";
+
+                            log::info!("Connecting to {} with token {}", url, token);
+
+                            let mut options = RoomOptions::default();
+                            options.adaptive_stream = false;
+                            options.dynacast = false;
+
+                            let result = Room::connect(&url, &token, options).await;
+                            log::info!("Connection attempt completed with result: {:#?}", result);
+                        //    result
+                        // });
+
+                        log::info!("Awaiting connect_result...");
+
+                        // let connect_await_result = result.await;
+                        // log::info!("Connect result awaited: {:#?}", connect_await_result);
+
+                        match result.expect("runtime spawn failed") {
+                            (room, mut events) => {
+                                log::info!("Successfully got room and events");
+                                let room_sid = room.sid().await;
+                                log::info!("Got room SID");
+                                log::info!("Connected to room {:#?}", room_sid);
+                                // Create and publish audio track once before entering event loop
+                                let options = AudioSourceOptions {
+                                    echo_cancellation: true,
+                                    noise_suppression: true,
+                                    auto_gain_control: true,
+                                    ..Default::default()
+                                };
+
+                                let audio_source = NativeAudioSource::new(
+                                    options,
+                                    44100,  // sample rate
+                                    1,      // num channels (mono)
+                                    100,    // queue size in ms
+                                );
+
+                                let rtc_source = livekit::webrtc::audio_source::RtcAudioSource::Native(audio_source);
+                                let local_audio_track = LocalAudioTrack::create_audio_track("microphone", rtc_source);
+                                let local_track = LocalTrack::Audio(local_audio_track);
+
+                                let track_pub = room.local_participant()
+                                    .publish_track(
+                                        local_track,
+                                        TrackPublishOptions {
+                                            source: TrackSource::Microphone,
+                                            ..Default::default()
+                                        },
+                                    )
+                                    .await.unwrap();
+
+                                log::info!("Published local audio track: {:#?}", track_pub);
+
+                                // Now enter the event loop
+                                while let Some(event) = events.recv().await {
+                                    if let Err(e) = handle_room_event(event).await {
+                                        log::error!("Error handling room event: {:?}", e);
+                                        ctx.update_app(Event::LiveKit(LiveKitEvent::Error(e.to_string())));
+                                        break;
+                                    }
+                                }
+                            }
+                            _ => {
+                                log::error!("Failed to connect");
+                                ctx.update_app(Event::LiveKit(LiveKitEvent::Error("errrrr".to_string())));
+                            }
+                        }
+                    });
+                });
+                    Command::done()
+                }
+                _ => todo!(),
+            },
+

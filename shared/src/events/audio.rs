@@ -55,13 +55,15 @@ pub enum AudioEvent {
 impl From<AudioOperation> for AudioEvent {
     fn from(op: AudioOperation) -> Self {
         match op {
-            AudioOperation::PlaybackAudio { sample_rate, channels, samples } => {
-                AudioEvent::RecordingComplete(AudioData {
-                    samples,
-                    sample_rate,
-                    channels,
-                })
-            }
+            AudioOperation::PlaybackAudio {
+                sample_rate,
+                channels,
+                samples,
+            } => AudioEvent::RecordingComplete(AudioData {
+                samples,
+                sample_rate,
+                channels,
+            }),
             AudioOperation::ToggleRecording => {
                 AudioEvent::RecordingStateChanged(RecordingState::Recording)
             }

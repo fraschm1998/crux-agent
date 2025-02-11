@@ -1,15 +1,10 @@
+use crux_core::Request;
 use crux_core::{command::CommandContext, compose::Compose, render, Command};
 use crux_http::protocol::HttpRequest;
-use livekit::options::TrackPublishOptions;
-use livekit::track::Track;
 use livekit::track::{LocalAudioTrack, LocalTrack, RemoteTrack, TrackSource};
-use livekit::webrtc::audio_source::native::NativeAudioSource;
-use livekit::webrtc::audio_stream::native::NativeAudioStream;
 use livekit::webrtc::prelude::{AudioSourceOptions, RtcAudioSource};
 use livekit::{Room, RoomEvent, RoomOptions};
-use std::sync::Arc;
 use std::{default, future::IntoFuture, time::Duration};
-use tokio::sync::mpsc;
 
 use crux_core::render::{Render, RenderOperation};
 use crux_http::command::Http;
@@ -18,13 +13,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::capabilities::audio::{AudioOperation, RecordingState};
 use crate::capabilities::livekit::{LiveKit, LiveKitOperation};
+use crate::effects::livekit_effects::LiveKitEffect;
 use crate::events::audio::AudioEvent;
 // use crate::events::Event;
 use crate::{
     capabilities::audio::{Audio, AudioData},
     events::livekit::LiveKitEvent,
 };
-use crate::RUNTIME;
 
 const API_URL: &str = "http://192.168.20.20:8000";
 
@@ -40,10 +35,10 @@ pub enum Event {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AppEffect {
-    Http(HttpRequest),           // Want to make HTTP request
-    Audio(AudioOperation),       // Want to play/record audio
-    LiveKit(LiveKitOperation),   // Want to do something with video call
-    Render(RenderOperation),     // Want to update the UI
+    Http(HttpRequest),         // Want to make HTTP request
+    Audio(AudioOperation),     // Want to play/record audio
+    LiveKit(LiveKitOperation), // Want to do something with video call
+    Render(RenderOperation),   // Want to update the UI
 }
 
 // ANCHOR: model
@@ -143,371 +138,23 @@ impl crux_core::App for App {
             Event::Nothing => Command::done(),
             Event::AppEffect(_) => Command::done(),
             Event::LiveKit(livekit_event) => match livekit_event {
-                // Modified LiveKit event handler
-                // LiveKitEvent::JoinRoom => {
-                //     let livekit = caps.livekit.clone();
-                //     
-                //     Command::new(move |ctx| async move {
-                //         RUNTIME.spawn(async move {
-                //             let url = "http://192.168.20.20:7880";
-                //             let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDI3NDg1MjcsImlzcyI6ImRldmtleSIsIm5hbWUiOiJsb2NhbGsiLCJuYmYiOjE3Mzg0Mjg1MjcsInN1YiI6ImxvY2FsayIsInZpZGVvIjp7InJvb20iOiJ0ZXN0Iiwicm9vbUpvaW4iOnRydWV9fQ.2i_6v5LD2cjyC25fomVCCrlR_PFKFw8b6zbyqXVr-MU";
-                //             let mut options = RoomOptions::default();
-                //             options.adaptive_stream = false;
-                //             options.dynacast = false;
-                // 
-                //             match Room::connect(&url, &token, options).await {
-                //                 Ok((room, mut events)) => {
-                //                     log::info!("Connected...");
-                //                     let audio_source = Arc::new(NativeAudioSource::new(
-                //                         AudioSourceOptions {
-                //                             echo_cancellation: true,
-                //                             noise_suppression: true,
-                //                             auto_gain_control: true,
-                //                             ..Default::default()
-                //                         },
-                //                         44100,
-                //                         1,
-                //                         100,
-                //                     ));
-                // 
-                //                     // Start mic capture through middleware
-                //                     // ctx.send_event(Event::Audio(AudioEvent::StartRecordingRequested));
-                //                     ctx.send_event(Event::Audio(AudioEvent::StartRecordingRequested(audio_source)));
-                //
-                //                     log::info!("Sending mic...");
-                // 
-                //                     let rtc_source = RtcAudioSource::Native(audio_source.as_ref().clone());
-                //                     let local_audio_track = LocalAudioTrack::create_audio_track("microphone", rtc_source);
-                //                     let local_track = LocalTrack::Audio(local_audio_track);
-                // 
-                //                     match room.local_participant()
-                //                         .publish_track(
-                //                             local_track,
-                //                             TrackPublishOptions {
-                //                                 source: TrackSource::Microphone,
-                //                                 ..Default::default()
-                //                             },
-                //                         ).await 
-                //                     {
-                //                         Ok(_) => {
-                //                             while let Some(room_event) = events.recv().await {
-                //                                 match livekit.handle_room_event(room_event).await {
-                //                                     Ok(app_event) => {
-                //                                         ctx.send_event(app_event);
-                //                                     }
-                //                                     Err(e) => {
-                //                                         ctx.send_event(Event::LiveKit(LiveKitEvent::Error(e.to_string())));
-                //                                         break;
-                //                                     }
-                //                                 }
-                //                             }
-                //                         }
-                //                         Err(e) => ctx.send_event(Event::LiveKit(LiveKitEvent::Error(e.to_string()))),
-                //                     }
-                //                 }
-                //                 Err(e) => ctx.send_event(Event::LiveKit(LiveKitEvent::Error(e.to_string()))),
-                //             }
-                //         });
-                //     })
-                // }
                 LiveKitEvent::JoinRoom => {
-                    let livekit = caps.livekit.clone();
-                    let audio = caps.audio.clone();
-                    caps.compose.spawn(|ctx| async move {
-                        RUNTIME.spawn(async move {
-                            let url = "http://192.168.20.20:7880";
-                            let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDI3NDg1MjcsImlzcyI6ImRldmtleSIsIm5hbWUiOiJsb2NhbGsiLCJuYmYiOjE3Mzg0Mjg1MjcsInN1YiI6ImxvY2FsayIsInZpZGVvIjp7InJvb20iOiJ0ZXN0Iiwicm9vbUpvaW4iOnRydWV9fQ.2i_6v5LD2cjyC25fomVCCrlR_PFKFw8b6zbyqXVr-MU";
-            
-                            log::info!("Connecting to {} with token {}", url, token);
-                            let mut options = RoomOptions::default();
-                            options.adaptive_stream = false;
-                            options.dynacast = false;
-            
-                            match Room::connect(&url, &token, options).await {
-                                Ok((room, mut events)) => {
-                                    let room_sid = room.sid().await;
-                                    log::info!("Connected to room {:#?}", room_sid);
-            
-                                    let audio_source = Arc::new(NativeAudioSource::new(
-                                        AudioSourceOptions {
-                                            echo_cancellation: true,
-                                            noise_suppression: true,
-                                            auto_gain_control: true,
-                                            ..Default::default()
-                                        },
-                                        44100,
-                                        1,
-                                        100,
-                                    ));
-            
-                                    let rtc_source = RtcAudioSource::Native(audio_source.as_ref().clone());
-                                    let local_audio_track = LocalAudioTrack::create_audio_track("microphone", rtc_source);
-                                    let local_track = LocalTrack::Audio(local_audio_track);
-            
-                                    match room.local_participant()
-                                        .publish_track(
-                                            local_track,
-                                            TrackPublishOptions {
-                                                source: TrackSource::Microphone,
-                                                ..Default::default()
-                                            },
-                                        ).await
-                                    {
-                                        Ok(track_pub) => {
-                                            log::info!("Published local audio track: {:#?}", track_pub);
-            
-                                            // 🔹 Clone `audio` before moving into the async task to ensure `'static` lifetime
-                                            let audio_clone = audio.clone();
-                                            let audio_source_clone = audio_source.clone();
-            
-                                            // tokio::spawn(async move {
-                                            audio_clone.capture_mic_audio(audio_source_clone).await;
-                                            // });
-            
-                                            // while let Some(room_event) = events.recv().await {
-                                            //     match livekit.handle_room_event(room_event).await {
-                                            //         Ok(app_event) => {
-                                            //             if let Event::Audio(AudioEvent::PlaybackAudio { track }) = app_event {
-                                            //                 let audio_clone = audio.clone();
-                                            //                 match audio_clone.playback_audio(track) {
-                                            //                     Ok(_) => log::info!("Audio playback started successfully"),
-                                            //                     Err(e) => log::error!("Failed to start audio playback: {:?}", e),
-                                            //                 }
-                                            //             }
-                                            //         }
-                                            //         Err(e) => {
-                                            //             log::error!("Error handling room event: {:?}", e);
-                                            //             ctx.update_app(Event::LiveKit(LiveKitEvent::Error(e.to_string())));
-                                            //             break;
-                                            //         }
-                                            //     }
-                                            // }
-                                        }
-                                        Err(e) => log::error!("Track publish error: {:?}", e),
-                                    }
-                                }
-                                Err(err) => {
-                                    log::error!("Failed to connect: {:?}", err);
-                                    ctx.update_app(Event::LiveKit(LiveKitEvent::Error(err.to_string())));
-                                }
-                            }
-                        });
-                    });
+                    Command::notify_shell(LiveKitOperation::JoinRoom(
+                        "http://192.168.20.20:7880".to_string(),
+                        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDI3NDg1MjcsImlzcyI6ImRldmtleSIsIm5hbWUiOiJsb2NhbGsiLCJuYmYiOjE3Mzg0Mjg1MjcsInN1YiI6ImxvY2FsayIsInZpZGVvIjp7InJvb20iOiJ0ZXN0Iiwicm9vbUpvaW4iOnRydWV9fQ.2i_6v5LD2cjyC25fomVCCrlR_PFKFw8b6zbyqXVr-MU".to_string(),
+                    ))
+                }
+                LiveKitEvent::RoomJoined => {
+                    log::info!("WE JOINED THE ROOM"); // perhaps specify which room?
+                                                      // RoomJoined(Room)
+                    // model.current_screen = View::Connected;
                     Command::done()
                 }
-              //   LiveKitEvent::JoinRoom => {
-              //       let livekit = caps.livekit.clone();
-              //       
-              //       Command::new(move |ctx| {
-              //           let livekit = livekit.clone();
-              //           
-              //           async move {
-              //               let (tx, mut rx) = tokio::sync::mpsc::channel(100);
-              //               
-              //               // Spawn the LiveKit connection handling
-              //               RUNTIME.spawn(async move {
-              //                   let url = "http://192.168.20.20:7880";
-              //                   let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDI3NDg1MjcsImlzcyI6ImRldmtleSIsIm5hbWUiOiJsb2NhbGsiLCJuYmYiOjE3Mzg0Mjg1MjcsInN1YiI6ImxvY2FsayIsInZpZGVvIjp7InJvb20iOiJ0ZXN0Iiwicm9vbUpvaW4iOnRydWV9fQ.2i_6v5LD2cjyC25fomVCCrlR_PFKFw8b6zbyqXVr-MU";
-              //
-              //                   let mut options = RoomOptions::default();
-              //                   options.adaptive_stream = false;
-              //                   options.dynacast = false;
-              //
-              //                   match Room::connect(&url, &token, options).await {
-              //                       Ok((room, mut events)) => {
-              //                           let audio_source = Arc::new(NativeAudioSource::new(
-              //                               AudioSourceOptions {
-              //                                   echo_cancellation: true,
-              //                                   noise_suppression: true,
-              //                                   auto_gain_control: true,
-              //                                   ..Default::default()
-              //                               },
-              //                               44100,
-              //                               1,
-              //                               100,
-              //                           ));
-              // 
-              //                           let rtc_source = RtcAudioSource::Native(audio_source.as_ref().clone());
-              //                           let local_audio_track = LocalAudioTrack::create_audio_track("microphone", rtc_source);
-              //                           let local_track = LocalTrack::Audio(local_audio_track);
-              //
-              //                           match room.local_participant()
-              //                               .publish_track(
-              //                                   local_track,
-              //                                   TrackPublishOptions {
-              //                                       source: TrackSource::Microphone,
-              //                                       ..Default::default()
-              //                                   },
-              //                               ).await 
-              //                           {
-              //                               Ok(_) => {
-              //                                   // Send audio source through channel
-              //                                   let _ = tx.send(Event::Audio(AudioEvent::StartRecordingRequested)).await;
-              //                                   
-              //                                   // Process room events
-              //                                   while let Some(room_event) = events.recv().await {
-              //                                       match livekit.handle_room_event(room_event).await {
-              //                                           Ok(app_event) => {
-              //                                               let _ = tx.send(app_event).await;
-              //                                           }
-              //                                           Err(e) => {
-              //                                               let _ = tx.send(Event::LiveKit(LiveKitEvent::Error(e.to_string()))).await;
-              //                                               break;
-              //                                           }
-              //                                       }
-              //                                   }
-              //                               }
-              //                               Err(e) => {
-              //                                   let _ = tx.send(Event::LiveKit(LiveKitEvent::Error(e.to_string()))).await;
-              //                               }
-              //                           }
-              //                       }
-              //                       Err(e) => {
-              //                           let _ = tx.send(Event::LiveKit(LiveKitEvent::Error(e.to_string()))).await;
-              //                       }
-              //                   }
-              //               });
-              //
-              //               // Spawn a separate task for processing events
-              //               let event_handler = RUNTIME.spawn(async move {
-              //                   while let Some(event) = rx.recv().await {
-              //                       log::error!("CHANNEL RECEIVED EVENT: {:#?}", event);
-              //                       ctx.send_event(event);
-              //                   }
-              //               });
-              //
-              //               // Wait for both the LiveKit connection and event handler to complete
-              //               tokio::select! {
-              //                   _ = event_handler => {
-              //                       log::error!("Event handler completed");
-              //                   },
-              //                   _ = async {} => {
-              //                       log::error!("LiveKit connection completed");
-              //                   }
-              //               }
-              //           }
-              //       })
-              //   }
-                //     LiveKitEvent::JoinRoom => {
-                //        let livekit = caps.livekit.clone();
-                //        let audio = caps.audio.clone();  // Clone audio capability
-
-                //        // Create channel for events
-                //        let (tx, rx) = mpsc::unbounded_channel();
-                //
-                //        // Store sender in global state
-                //        *EVENT_SENDER.lock().unwrap() = Some(tx.clone());
-
-                //        // Create a separate task for immediate event processing
-                //        RUNTIME.spawn(async move {
-                //            let mut rx = rx;
-                //            while let Some(event) = rx.recv().await {
-                //                log::info!("Immediate event processor received: {:?}", event);
-                //                if let Event::Audio(AudioEvent::PlaybackAudio { track }) = event {
-                //                    log::info!("Processing audio event immediately");
-                //                    match audio.playback_audio(track) {
-                //                        Ok(_) => log::info!("Audio playback started successfully"),
-                //                        Err(e) => log::error!("Failed to start audio playback: {:?}", e),
-                //                    }
-                //                }
-                //            }
-                //        });
-                //        // RUNTIME.spawn(async move {
-                //        //     let mut rx = rx;
-                //        //     while let Some(event) = rx.recv().await {
-                //        //         log::info!("Immediate event processor received: {:?}", event);
-                //        //
-                //        //         // Execute the command immediately
-                //        //         RUNTIME.spawn(async move {
-                //        //             let _ = Command::<Effect, Event>::event(event);
-                //        //         });
-                //        //     }
-                //        // });
-
-                //        // Create the main LiveKit connection command
-                //        Command::new(move |_| async move {
-                //            RUNTIME.spawn(async move {
-                //                let url = "http://192.168.20.20:7880";
-                //                let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDI3NDg1MjcsImlzcyI6ImRldmtleSIsIm5hbWUiOiJsb2NhbGsiLCJuYmYiOjE3Mzg0Mjg1MjcsInN1YiI6ImxvY2FsayIsInZpZGVvIjp7InJvb20iOiJ0ZXN0Iiwicm9vbUpvaW4iOnRydWV9fQ.2i_6v5LD2cjyC25fomVCCrlR_PFKFw8b6zbyqXVr-MU";
-
-                //                log::info!("Connecting to {} with token {}", url, token);
-
-                //                let mut options = RoomOptions::default();
-                //                options.adaptive_stream = false;
-                //                options.dynacast = false;
-
-                //                match Room::connect(&url, &token, options).await {
-                //                    Ok((room, mut events)) => {
-                //                        let room_sid = room.sid().await;
-                //                        log::info!("Connected to room {:#?}", room_sid);
-
-                //                        // Audio setup
-                //                        let options = AudioSourceOptions {
-                //                            echo_cancellation: true,
-                //                            noise_suppression: true,
-                //                            auto_gain_control: true,
-                //                            ..Default::default()
-                //                        };
-
-                //                        let audio_source = NativeAudioSource::new(
-                //                            options,
-                //                            44100,
-                //                            1,
-                //                            100,
-                //                        );
-
-                //                        let rtc_source = RtcAudioSource::Native(audio_source);
-                //                        let local_audio_track = LocalAudioTrack::create_audio_track("microphone", rtc_source);
-                //                        let local_track = LocalTrack::Audio(local_audio_track);
-
-                //                        match room.local_participant()
-                //                            .publish_track(
-                //                                local_track,
-                //                                TrackPublishOptions {
-                //                                    source: TrackSource::Microphone,
-                //                                    ..Default::default()
-                //                                },
-                //                            ).await
-                //                        {
-                //                            Ok(track_pub) => {
-                //                                log::info!("Published local audio track: {:#?}", track_pub);
-
-                //                                // LiveKit event loop
-                //                                while let Some(event) = events.recv().await {
-                //                                    log::warn!("NEW EVENT: {:#?}", event);
-                //                                    match livekit.handle_room_event(event).await {
-                //                                        Ok(app_event) => {
-                //                                            log::info!("LiveKit generated event: {:?}", app_event);
-                //                                            if let Err(e) = tx.send(app_event) {
-                //                                                log::error!("Channel send error: {:?}", e);
-                //                                                break;
-                //                                            }
-                //                                            log::info!("Event sent to channel successfully");
-                //                                        }
-                //                                        Err(e) => {
-                //                                            log::error!("LiveKit event handling error: {:?}", e);
-                //                                            if let Err(e) = tx.send(Event::LiveKit(LiveKitEvent::Error(e.to_string()))) {
-                //                                                log::error!("Error event channel send failed: {:?}", e);
-                //                                            }
-                //                                            break;
-                //                                        }
-                //                                    }
-                //                                }
-                //                            }
-                //                            Err(e) => {
-                //                                log::error!("Track publish error: {:?}", e);
-                //                                let _ = tx.send(Event::LiveKit(LiveKitEvent::Error(e.to_string())));
-                //                            }
-                //                        }
-                //                    }
-                //                    Err(e) => {
-                //                        log::error!("Room connection error: {:?}", e);
-                //                        let _ = tx.send(Event::LiveKit(LiveKitEvent::Error(e.to_string())));
-                //                    }
-                //                }
-                //            });
-                //        })
-                //     }
+                LiveKitEvent::Error(error) => {
+                    log::error!("LiveKit error: {}", error);
+                    // model.current_screen = View::Error;
+                    Command::done()
+                }
                 _ => {
                     log::info!("Unhandled event type in App update");
                     Command::done()
@@ -569,27 +216,24 @@ impl crux_core::App for App {
                         //     Event::Audio(AudioEvent::StopRecordingRequested);
                         // } else if recor
                     }
-                    // AudioEvent::StartRecordingRequested => {
-                    //     // Should first match authenticated then anything else
-                    //     log::info!(
-                    //         "@222AUTHMODEL RECORDING STATE MODEL {:#?}",
-                    //         &model.recording
-                    //     );
-                    //     model.recording.recording_state = RecordingState::Recording;
-                    //     // caps.audio.start_recording().unwrap();
-                    //     caps.audio.start_recording().unwrap();
-                    //     Command::done()
-                    // }
+                    AudioEvent::StartRecordingRequested => {
+                        // Should first match authenticated then anything else
+                        log::info!(
+                            "@222AUTHMODEL RECORDING STATE MODEL {:#?}",
+                            &model.recording
+                        );
+                        model.recording.recording_state = RecordingState::Recording;
+                        // caps.audio.start_recording().unwrap();
+                        caps.audio.start_recording().unwrap();
+                        Command::done()
+                    }
                     AudioEvent::StopRecordingRequested => {
                         model.recording.recording_state = RecordingState::Idle;
                         let data = caps.audio.stop_recording().unwrap();
                         Command::event(Event::Audio(AudioEvent::SendRecordingRequested(data)))
                     }
-                    AudioEvent::PlaybackAudio {
-                        track,
-                        // sample_rate,
-                        // num_channels,
-                    } => {
+                    AudioEvent::PlaybackAudio { track } => {
+                        log::info!("Received PlaybackAudio event in app update");
                         log::info!("Starting audio playback...");
                         match caps.audio.playback_audio(track) {
                             Ok(_) => {

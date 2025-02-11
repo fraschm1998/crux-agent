@@ -1,5 +1,5 @@
 use crux_core::typegen::TypeGen;
-use shared::app::{AppEffect, View};
+use shared::app::View;
 use shared::capabilities::audio::{AudioError, AudioResponse, RecordingState};
 use shared::capabilities::livekit::LiveKitError;
 use shared::events::livekit::LiveKitEvent;
@@ -23,7 +23,7 @@ fn main() -> anyhow::Result<()> {
     gen.register_type::<LiveKitEvent>()?;
     gen.register_type::<LiveKitError>()?;
 
-    gen.register_type::<AppEffect>()?;
+    // gen.register_type::<AppEffect>()?;
     gen.register_type::<View>()?;
 
     let output_root = PathBuf::from("./generated");

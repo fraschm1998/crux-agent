@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 pub enum LiveKitEvent {
     JoinRoom, // (String, String), // (room_name, token)
     // Connecting,
-    RoomJoined(String),
+    RoomJoined,
+    // RoomJoined(String), // do we need to specify the room?
     RoomLeft,
     // DebateStarted,
     // AudioReceived(Vec<u8>),

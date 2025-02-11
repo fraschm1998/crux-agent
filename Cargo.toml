@@ -12,6 +12,8 @@ rust-version = "1.82"
 
 [workspace.dependencies]
 anyhow = "^1.0"
-crux_core = "^0.11"
-crux_http = "^0.11"
+# crux_core = "^0.11"
+# crux_core = { git = "https://github.com/redbadger/crux", branch = "viktor/middleware-experiment" }
+crux_core = { path = "../crux/crux_core" }
+crux_http = { path = "../crux/crux_http" }
 serde = "^1.0"

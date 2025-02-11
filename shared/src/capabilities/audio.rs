@@ -279,11 +279,11 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crux_core::capability::{CapabilityContext, Operation};
 use futures::StreamExt;
+use livekit::webrtc::audio_frame::AudioFrame as LiveKitAudioFrame;
 use livekit::webrtc::{
     audio_source::native::NativeAudioSource, audio_stream::native::NativeAudioStream,
     prelude::RtcAudioTrack,
 };
-use livekit::webrtc::audio_frame::AudioFrame as LiveKitAudioFrame;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
@@ -761,40 +761,48 @@ where
         let host = cpal::default_host();
         let device = host.default_input_device().expect("No input device found");
         log::info!("Using input device: {:?}", device.name());
-    
-        let config = device.default_input_config().expect("Failed to get default input config");
+
+        let config = device
+            .default_input_config()
+            .expect("Failed to get default input config");
         let sample_rate = config.sample_rate().0;
         let channels = config.channels();
-        log::info!("Microphone config - Sample Rate: {}, Channels: {}", sample_rate, channels);
-    
+        log::info!(
+            "Microphone config - Sample Rate: {}, Channels: {}",
+            sample_rate,
+            channels
+        );
+
         let err_fn = |err| log::error!("Audio capture error: {}", err);
-    
-        let stream = device.build_input_stream(
-            &config.into(),
-            move |data: &[i16], _| {
-                let audio_data: Vec<i16> = data.to_vec(); // Clone data to ensure ownership
-                let frame = LiveKitAudioFrame {  
-                    num_channels: channels as u32,
-                    samples_per_channel: (audio_data.len() / channels as usize) as u32, 
-                    data: audio_data.into(), // Transfer ownership
-                    sample_rate, // ✅ Added missing field
-                };
-        
-                let audio_source = audio_source.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = audio_source.capture_frame(&frame).await {
-                        log::error!("Failed to push mic audio frame: {:?}", e);
-                    }
-                });
-            },
-            err_fn,
-            None,
-        ).expect("Failed to build input stream");
+
+        let stream = device
+            .build_input_stream(
+                &config.into(),
+                move |data: &[i16], _| {
+                    let audio_data: Vec<i16> = data.to_vec(); // Clone data to ensure ownership
+                    let frame = LiveKitAudioFrame {
+                        num_channels: channels as u32,
+                        samples_per_channel: (audio_data.len() / channels as usize) as u32,
+                        data: audio_data.into(), // Transfer ownership
+                        sample_rate,             // ✅ Added missing field
+                    };
+
+                    let audio_source = audio_source.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = audio_source.capture_frame(&frame).await {
+                            log::error!("Failed to push mic audio frame: {:?}", e);
+                        }
+                    });
+                },
+                err_fn,
+                None,
+            )
+            .expect("Failed to build input stream");
 
         log::info!("Starting microphone capture...");
         stream.play().expect("Failed to start audio stream");
-    
-        std::thread::sleep(std::time::Duration::from_secs(600));  // Keep it running for a long time
+
+        std::thread::sleep(std::time::Duration::from_secs(600)); // Keep it running for a long time
     }
 
     // pub fn playback_audio(
